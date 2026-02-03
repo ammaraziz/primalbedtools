@@ -1,10 +1,9 @@
 import argparse
 from importlib.metadata import version
+from pathlib import Path
 
 from primalbedtools.amplicons import create_amplicons
-from primalbedtools.bedfiles import (
-    BedFileModifier,
-)
+from primalbedtools.bedfiles import BedFileModifier
 from primalbedtools.fasta import read_fasta
 from primalbedtools.remap import remap
 from primalbedtools.scheme import Scheme
@@ -85,7 +84,7 @@ def main():
     format_parser = subparsers.add_parser("format", help="Format a bed file")
     format_parser.add_argument("bed", type=str, help="Input BED file")
 
-    # format
+    # csv
     csv_parser = subparsers.add_parser("csv", help="Convert bed file to CSV")
     csv_parser.add_argument("bed", type=str, help="Input BED file")
     csv_parser.add_argument(
@@ -96,6 +95,16 @@ def main():
         help="Should header aliases be used.",
         action="store_true",
     )
+    # compare
+    compare_parser = subparsers.add_parser(
+        "compare",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        help="Perform pairwise alignment and comparison between two sequences",
+    )
+    compare_parser.add_argument("-r", "--ref-name", type=str, help="Reference name")
+    compare_parser.add_argument("-a", "--alignment", type=Path, help="Input msa")
+    compare_parser.add_argument("-t", "--tsv", type=Path, help="Output tsv file")
+    compare_parser.add_argument("bed", type=str, help="Input bed file")
 
     args = parser.parse_args()
 
@@ -159,10 +168,13 @@ def main():
                 use_header_aliases=args.use_header_aliases,
             )
         )
+    elif args.subparser_name == "compare":
+        print(args)
         exit(0)
     else:
         parser.print_help()
 
 
 if __name__ == "__main__":
+    main()
     main()
