@@ -251,13 +251,14 @@ class TestDiff(unittest.TestCase):
         ]
         self.sequences = np.array(
             [
-                list("ACGTGGGTATGATGCACGTGGGTATGATGC"),
-                list("ACGTGGGTATGATGCACGTGGGTATGATGC"),
-                list(""),
-                list("ACGTGGGTATGATGCACGTGGGTATGATG"),
-                list("ACGTGGGTATGATGCACGTGGGTATGATGT"),
-                list("ACGTGGGTATGATGCACGTGGGTATGACAT"),
-                list("ACGTGGGTATGATGCXCGTGGGTATGATGC"),
+                list("ACGTGGGTATGATGCACGTGGGTATGATGC"),  # ref
+                list("ACGTGGGTATGATGCACGTGGGTATGATGC"),  # identicaly
+                list(""),  # obliterated
+                list("ACGTGGGTATGATGCACGTGGGTATGATG"),  # end del
+                list("ACGTGGGTATGATGCACGTGGGTATGATGX"),  # 3' single diff
+                list("ACGTGGGTATGATGCACGTGGGTATGAXXX"),  # 3' three diff
+                list("ACGTGGGTATGATGCXCGTGGGTATGATGC"),  # middle single diff
+                list("ACGTGGGTATGATGCXCGTGGGTATGATGC"),  # middle single diff
             ]
         )
         self.msa = MultipleSequenceAlignment(names=self.names, sequences=self.sequences)
