@@ -252,13 +252,15 @@ class TestDiff(unittest.TestCase):
         self.sequences = np.array(
             [
                 list("ACGTGGGTATGATGCACGTGGGTATGATGC"),  # ref
-                list("ACGTGGGTATGATGCACGTGGGTATGATGC"),  # identicaly
-                list(""),  # obliterated
-                list("ACGTGGGTATGATGCACGTGGGTATGATG"),  # end del
-                list("ACGTGGGTATGATGCACGTGGGTATGATGX"),  # 3' single diff
-                list("ACGTGGGTATGATGCACGTGGGTATGAXXX"),  # 3' three diff
-                list("ACGTGGGTATGATGCXCGTGGGTATGATGC"),  # middle single diff
-                list("ACGTGGGTATGATGCXCGTGGGTATGATGC"),  # middle single diff
+                list("ACGTGGGTATGATGCACGTGGGTATGATGC"),  # identicaly - clean
+                list("------------------------------"),  # obliterated - deadly
+                list("ACGTGGGTATGATGCACGTGGGTATGATGX"),  # end deletion - deadly
+                list("ACGTGGGTATGATGCACGTGGGTATGATGX"),  # 3' single diff - deadly
+                list("ACGTGGGTATGATGCACGTGGGTATGAXXX"),  # 3' three diff - deadly
+                list("ACGTGGGTATGATGCXCGTGGGTATGATGC"),  # middle single diff - moderate
+                list(
+                    "ACGTGGGTATGATGCXCGTGGGTATGATGC"
+                ),  # middle consequetive diff - deadly
             ]
         )
         self.msa = MultipleSequenceAlignment(names=self.names, sequences=self.sequences)
@@ -267,52 +269,52 @@ class TestDiff(unittest.TestCase):
         primer = np.array(["ACGTGGGTATGATGCACGTGGGTATGATGC"], dtype="<U1")
         sample = np.array(["ACGTGGGTATGATGCACGTGGGTATGATGC"], dtype="<U1")
         result = calc_mismatch_degree(primer, sample)
-        self.assertEqual(result, "identical")
+        self.assertEqual(result["status"], "identical")
 
     def test_diff_obliterated(self):
         primer = np.array(["ACGTGGGT"], dtype="<U1")
         sample = np.array([""], dtype="<U1")
         result = calc_mismatch_degree(primer, sample)
-        self.assertEqual(result, "deadly")
+        self.assertEqual(result["status"], "deadly")
 
     def test_diff_single_deletion(self):
         primer = np.array(["ACGTGGGT"], dtype="<U1")
         sample = np.array(["ACGTGGG"], dtype="<U1")
         result = calc_mismatch_degree(primer, sample)
-        self.assertEqual(result, "deadly")
+        self.assertEqual(result["status"], "deadly")
 
     def test_diff_three_prime_1(self):
         primer = np.array(["ACGTGGGT"], dtype="<U1")
         sample = np.array(["ACGTGGGC"], dtype="<U1")
         result = calc_mismatch_degree(primer, sample)
-        self.assertEqual(result, "deadly")
+        self.assertEqual(result["status"], "deadly")
 
     def test_diff_three_prime_3(self):
         primer = np.array(["ACGTGGGT"], dtype="<U1")
         sample = np.array(["ACGTGCCC"], dtype="<U1")
         result = calc_mismatch_degree(primer, sample)
-        self.assertEqual(result, "deadly")
+        self.assertEqual(result["status"], "deadly")
 
     def test_diff_centre(self):
         primer = np.array(["ACGTGGGTATGATGC"], dtype="<U1")
         sample = np.array(["ACGTGGGCATGATGC"], dtype="<U1")
         result = calc_mismatch_degree(primer, sample)
-        self.assertEqual(result, "mild")
+        self.assertEqual(result["status"], "mild")
 
     def test_diff_mild2(self):
         primer = np.array(["ACGTGGGTATGATGC"], dtype="<U1")
         sample = np.array(["ACGTGGCCATGATGC"], dtype="<U1")
         result = calc_mismatch_degree(primer, sample)
-        self.assertEqual(result, "mild")
+        self.assertEqual(result["status"], "mild")
 
     def test_diff_mild3(self):
         primer = np.array(["ACGTGGGTATGATGC"], dtype="<U1")
         sample = np.array(["TGGCCATGATGC"], dtype="<U1")
         result = calc_mismatch_degree(primer, sample)
-        self.assertEqual(result, "mild")
+        self.assertEqual(result["status"], "mild")
 
     def test_diff_deadly_10(self):
         primer = np.array(["ACGTGGGTATGATGCACGTGGGTATGATGC"], dtype="<U1")
         sample = np.array(["GGGGGGGTATGATGCACGTGGGTATGATGC"], dtype="<U1")
         result = calc_mismatch_degree(primer, sample)
-        self.assertEqual(result, "deadly")
+        self.assertEqual(result["status"], "deadly")
