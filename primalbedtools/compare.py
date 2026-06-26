@@ -17,7 +17,6 @@ Steps:
     2. group primers by amplicon group_by_amplicon_number()
     3. For each primer in each amplicon group:
         - calc # of mismatches
-        - 
         - append results to dict indexed by group number
     4. rate each primer by the follownig rules:
         - 
@@ -178,62 +177,105 @@ def calc_levenshtein_distance(seq1: np.array, seq2: np.array) -> int:
 
 def calc_mismatch_degree(primer: np.array, query: np.array):
     """
-    Calculate the degree of mismatches from the difflab optcodes
+    Calculate the degree of mismatches for a primer against a query sequence.
+
+    The primer is assumed to be oriented 5' -> 3', so the 3' end is the last
+    base in the array. Mismatch positions are classified into degrees based on
+    the rules below.
 
     rules for computing degrees of changes:
 
     deadly:
-        - from 3' bases 1-3 affect massive, beyond 4 bases diminishing effects [Huang et al., 2024]
+        - from 3' bases 1-3 affect massive, beyond 4 bases diminishing effects
+          [Huang et al., 2024]
         - beyond 3', >11 mismatches blocks amplification
     mild:
         - from centre to 5', up to 8 mismatches causes mild [Huang et al., 2024]
         - >6 from middle to 5' mainly due to Tm changes
 
     Citation: https://doi.org/10.3390/genes15020215
+
+    Parameters
+    ----------
+    primer : np.array
+        1D array of characters representing the primer sequence (5' -> 3').
+    query : np.array
+        1D array of characters representing the query sequence. Must be the same
+        length as ``primer`` (core-genome MSA, no indels).
+
+    Returns
+    -------
+    dict
+        Mapping of mismatch degree to a list of zero-based positions:
+        ``{"deadly": [pos, ...], "mild": [pos, ...], "moderate": [pos, ...]}``.
+        Positions are sorted in ascending order.
     """
-    print(primer)
-    for p, q in zip(primer, query):
-        print(p, q)
+    length = primer.shape[0]
+    result = {"deadly": [], "mild": [], "moderate": [], "status": ""}
 
+    # Core-genome MSA: no indels, so mismatches are simple element-wise
+    # differences (equivalent to the "replace" opcodes from difflib).
+    mismatch_positions = np.where(primer != query)[0]
 
-#     primer = "".join(primer[0])
-#     query = "".join(query[0])
-#     danger_zone = range(len(primer) - 3, len(primer))
-#     primer_length = len(primer)
+    # Any run of 2 or more consecutive mismatches is classified as deadly.
+    # TODO: simplify code?
+    if mismatch_positions.size > 0:
+        diffs = np.diff(mismatch_positions)
+        run_breaks = np.where(diffs != 1)[0]
+        run_starts = np.concatenate(([0], run_breaks + 1))
+        run_ends = np.concatenate((run_breaks, [mismatch_positions.size - 1]))
+        run_lengths = run_ends - run_starts + 1
 
-#     sm = difflib.SequenceMatcher(None, primer, query)
-#     for tag, primer_start, primer_end, query_start, query_end in sm.get_opcodes():
-#         print(tag, primer_start, primer_end, query_start, query_end)
-#         qrange = range(query_start, query_end)
-#         prange = range(primer_start, primer_end)
-#         if tag == "equal":
-#             if (
-#                 min(qrange)
-#                 == 0 & min(prange)
-#                 == 0 & max(qrange)
-#                 == primer_length & max(prange)
-#                 == primer_length
-#             ):
-#                 return "identical"
-#         if tag == "delete":
-#             # first check if primer is obliterated - aka completely missing
-#             if len(prange) == primer_length:
-#                 return "deadly"
-#             # within danger zone, this is deadly to primer binding
-#             if set(prange).intersection(danger_zone):
-#                 return "deadly"
-#             # outside of danger zone, it's acceptable but within reason
-#             # first quantify the number of deletions
-#             # code goes here
+        long_run_mask = run_lengths >= 2
+        if np.any(long_run_mask):
+            in_long_run = np.zeros(mismatch_positions.size, dtype=bool)
+            for start, end in zip(run_starts[long_run_mask], run_ends[long_run_mask]):
+                in_long_run[start : end + 1] = True
+            result["deadly"].extend(mismatch_positions[in_long_run].tolist())
+            mismatch_positions = mismatch_positions[~in_long_run]
 
-#         if tag == "replace":
-#             print("hit replace")
-#             print(qrange)
-#             # check if primer is completely different
-#             if len(qrange) == primer_length:
-#                 return "deadly"
-#             if set(qrange).intersection(danger_zone):
-#                 return "deadly"
+    # 3' detection
+    three_prime_mask = mismatch_positions >= length - 3
+    result["deadly"].extend(mismatch_positions[three_prime_mask].tolist())
+
+    # Core-genome MSA: no indels, so mismatches are simple element-wise
+    # differences (equivalent to the "replace" opcodes from difflib).
+    mismatch_positions = np.where(primer != query)[0]
+
+    # Mismatches beyond the 3' terminal 3 bases.
+    remaining = mismatch_positions[~three_prime_mask]
+
+    # Split the remaining primer into the 5' half (centre -> 5') and the
+    # middle region (between the centre and the 3' terminal 3 bases).
+    middle = length // 2
+    five_prime_mask = remaining < middle
+    five_prime_mismatches = remaining[five_prime_mask]
+    middle_mismatches = remaining[~five_prime_mask]
+
+    if remaining.size > 11:
+        result["deadly"].extend(remaining.tolist())
+
+    # From centre to 5': up to 8 mismatches is mild. More than 8 mismatches
+    # in the 5' half exceeds the mild threshold and is classified moderate.
+    if five_prime_mismatches.size <= 8:
+        result["mild"].extend(five_prime_mismatches.tolist())
+    else:
+        result["moderate"].extend(five_prime_mismatches.tolist())
+
+    # Mismatches in the middle region (not in the 3' terminal 3 bases and not
+    # in the 5' half) have a moderate effect on amplification.
+    result["moderate"].extend(middle_mismatches.tolist())
+
+    if mismatch_positions.size == 0:
+        result["status"] = "identical"
+    elif result["deadly"]:
+        result["status"] = "obliterated"
+    elif result["mild"] and not result["deadly"] and not result["moderate"]:
+        result["status"] = "mild"
+    elif result["moderate"] and not result["deadly"] and not result["mild"]:
+        result["status"] = "moderate"
+
+    return result
 
 
 def calc_primer_hamming(seq1, seq2) -> int:
